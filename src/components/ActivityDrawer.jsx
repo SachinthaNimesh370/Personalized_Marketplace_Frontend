@@ -7,7 +7,10 @@ export default function ActivityDrawer({ activeUser, refreshTrigger }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!activeUser || !isOpen) return;
+    if (!activeUser) {
+      setInteractions([]);
+      return;
+    }
 
     let isMounted = true;
     setLoading(true);
@@ -23,7 +26,7 @@ export default function ActivityDrawer({ activeUser, refreshTrigger }) {
     return () => {
       isMounted = false;
     };
-  }, [activeUser, isOpen, refreshTrigger]);
+  }, [activeUser, refreshTrigger]);
 
   return (
     <div className={`activity-drawer ${isOpen ? 'open' : ''}`}>

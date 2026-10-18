@@ -40,3 +40,13 @@ export async function fetchUserInteractions(userId) {
   if (!res.ok) throw new Error('Failed to fetch user interactions');
   return res.json();
 }
+
+export async function fetchSavedListingIds(userId) {
+  if (!userId) return [];
+  const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(userId)}/saved`);
+  if (!res.ok) {
+    const interactions = await fetchUserInteractions(userId);
+    return interactions.filter((i) => i.type === 'save').map((i) => i.listingId);
+  }
+  return res.json();
+}

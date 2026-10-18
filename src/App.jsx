@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, fetchRecommendations, recordInteraction } from './api';
+import { fetchUsers, fetchRecommendations, recordInteraction, fetchSavedListingIds } from './api';
 import UserSwitcher from './components/UserSwitcher';
 import Feed from './components/Feed';
 import ListingModal from './components/ListingModal';
@@ -12,6 +12,7 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [activeUser, setActiveUser] = useState(null);
   const [listings, setListings] = useState([]);
+  const [savedListingIds, setSavedListingIds] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [activeModalListing, setActiveModalListing] = useState(null);
@@ -66,15 +67,35 @@ export default function App() {
     }
   }, []);
 
+  // 3. Fetch user's saved listing IDs from MongoDB
+  const loadSavedListings = useCallback(async (user) => {
+    if (!user) {
+      setSavedListingIds(new Set());
+      return;
+    }
+    try {
+      const ids = await fetchSavedListingIds(user._id);
+      setSavedListingIds(new Set(ids));
+    } catch (err) {
+      console.error('Failed to load saved listings:', err);
+      setSavedListingIds(new Set());
+    }
+  }, []);
+
   useEffect(() => {
     if (activeUser) {
       loadRecommendations(activeUser);
+      loadSavedListings(activeUser);
+    } else {
+      setListings([]);
+      setSavedListingIds(new Set());
     }
-  }, [activeUser, loadRecommendations, refreshTrigger]);
+  }, [activeUser, loadRecommendations, loadSavedListings, refreshTrigger]);
 
   // Handle user switch
   const handleSelectUser = (user) => {
     setActiveUser(user);
+    setSavedListingIds(new Set()); // Clear state immediately so User A state never leaks into User B
     localStorage.setItem(LOCAL_STORAGE_KEY, user._id);
     showToast(`Switched active profile to ${user.name}`);
   };
@@ -96,14 +117,28 @@ export default function App() {
   // Action: Save Listing
   const handleSave = async (listing) => {
     if (!activeUser) return;
-    setActionLoadingId(listing.listingId);
+    const listingId = listing.listingId;
+    if (savedListingIds.has(listingId) || actionLoadingId === listingId) return;
+
+    setActionLoadingId(listingId);
     try {
-      await recordInteraction(activeUser._id, listing.listingId, 'save');
-      showToast(`⭐ Saved "${listing.title}". Feed updated!`);
-      setRefreshTrigger((prev) => prev + 1);
+      const res = await recordInteraction(activeUser._id, listingId, 'save');
+      if (res && res.success) {
+        setSavedListingIds((prev) => new Set([...prev, listingId]));
+        showToast(`⭐ Saved "${listing.title}". Feed updated!`);
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        throw new Error(res?.error || 'Failed to save listing');
+      }
     } catch (err) {
       console.error('Save failed:', err);
-      showToast('Failed to save listing');
+      showToast(err.message || 'Failed to save listing');
+      // Restore previous state if save failed
+      setSavedListingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(listingId);
+        return next;
+      });
     } finally {
       setActionLoadingId(null);
     }
@@ -176,6 +211,7 @@ export default function App() {
           onSave={handleSave}
           onContact={handleContact}
           actionLoadingId={actionLoadingId}
+          savedListingIds={savedListingIds}
         />
       </main>
 
@@ -186,6 +222,7 @@ export default function App() {
           onClose={() => setActiveModalListing(null)}
           onSave={handleSave}
           onContact={handleContact}
+          isSaved={savedListingIds.has(activeModalListing.listingId)}
         />
       )}
 

@@ -471,6 +471,42 @@
   background: #fef3c7;
 }
 
+.btn-save.saved {
+  background: var(--accent-emerald);
+  color: #ffffff;
+  border: 1px solid #047857;
+  font-weight: 700;
+  cursor: default;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
+}
+
+.btn-save.saved:hover {
+  background: #047857;
+}
+
+.saved-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(5, 150, 105, 0.95);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+  z-index: 2;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.listing-card.is-saved {
+  border-color: #a7f3d0;
+}
+
 .btn-contact {
   background: var(--primary-blue);
   color: #ffffff;
