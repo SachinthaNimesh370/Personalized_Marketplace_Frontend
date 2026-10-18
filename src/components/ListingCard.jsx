@@ -6,6 +6,7 @@ export default function ListingCard({
   onSave,
   onContact,
   isActionLoading,
+  isSaved,
 }) {
   const isVehicle = listing.category === 'vehicle';
   const formattedPrice = new Intl.NumberFormat('en-LK', {
@@ -15,7 +16,7 @@ export default function ListingCard({
   }).format(listing.price);
 
   return (
-    <div className={`listing-card ${isVehicle ? 'type-vehicle' : 'type-property'}`}>
+    <div className={`listing-card ${isVehicle ? 'type-vehicle' : 'type-property'} ${isSaved ? 'is-saved' : ''}`}>
       {/* Card Header & Media */}
       <div className="card-media">
         {listing.imageUrl ? (
@@ -39,6 +40,11 @@ export default function ListingCard({
         {typeof listing.score === 'number' && (
           <div className="score-tag" title="Recommendation Score">
             Match: {(listing.score * 10).toFixed(0)}%
+          </div>
+        )}
+        {isSaved && (
+          <div className="saved-badge" title="Saved to your favorites">
+            <span>✓ Saved</span>
           </div>
         )}
       </div>
@@ -115,12 +121,13 @@ export default function ListingCard({
         </button>
         <button
           type="button"
-          className="btn btn-save"
+          className={`btn btn-save ${isSaved ? 'saved' : ''}`}
           onClick={() => onSave(listing)}
-          disabled={isActionLoading}
-          title="Save to favorites (logs Save)"
+          disabled={isActionLoading || isSaved}
+          title={isSaved ? 'Saved to favorites' : 'Save to favorites (logs Save)'}
+          aria-label={isSaved ? 'Saved' : 'Save'}
         >
-          ⭐ Save
+          {isSaved ? 'Saved' : '⭐ Save'}
         </button>
         <button
           type="button"

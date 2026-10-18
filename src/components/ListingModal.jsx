@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ListingModal({ listing, onClose, onSave, onContact }) {
+export default function ListingModal({ listing, onClose, onSave, onContact, isSaved }) {
   if (!listing) return null;
 
   const isVehicle = listing.category === 'vehicle';
@@ -94,13 +94,16 @@ export default function ListingModal({ listing, onClose, onSave, onContact }) {
         <div className="modal-actions">
           <button
             type="button"
-            className="btn btn-save"
+            className={`btn btn-save ${isSaved ? 'saved' : ''}`}
             onClick={() => {
-              onSave(listing);
+              if (!isSaved) {
+                onSave(listing);
+              }
               onClose();
             }}
+            disabled={isSaved}
           >
-            ⭐ Save Listing
+            {isSaved ? 'Saved' : '⭐ Save Listing'}
           </button>
           <button
             type="button"

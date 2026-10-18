@@ -11,6 +11,7 @@ export default function Feed({
   onSave,
   onContact,
   actionLoadingId,
+  savedListingIds,
 }) {
   const [filterCategory, setFilterCategory] = useState('all');
 
@@ -72,6 +73,7 @@ export default function Feed({
               onSave={onSave}
               onContact={onContact}
               isActionLoading={actionLoadingId === listing.listingId}
+              isSaved={Boolean(savedListingIds ? savedListingIds.has(listing.listingId) : listing.isSaved)}
             />
           ))}
         </div>
