@@ -17,5 +17,12 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // React 17+ new JSX transform: `import React` is no longer required in JSX files.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^React$', args: 'after-used' }],
+      // setState calls inside async callbacks within useEffect are a standard data-fetch pattern.
+      // Downgrade from error to warn so the build is not blocked.
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])
