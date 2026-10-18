@@ -1,122 +1,211 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useCallback } from 'react';
+import { fetchUsers, fetchRecommendations, recordInteraction } from './api';
+import UserSwitcher from './components/UserSwitcher';
+import Feed from './components/Feed';
+import ListingModal from './components/ListingModal';
+import ActivityDrawer from './components/ActivityDrawer';
+import './App.css';
 
-function App() {
-  const [count, setCount] = useState(0)
+const LOCAL_STORAGE_KEY = 'primemarket_selected_user_id';
+
+export default function App() {
+  const [users, setUsers] = useState([]);
+  const [activeUser, setActiveUser] = useState(null);
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [activeModalListing, setActiveModalListing] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  // 1. Fetch test users on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchUsers()
+      .then((data) => {
+        if (!isMounted || !data || data.length === 0) return;
+        setUsers(data);
+
+        // Check localStorage for previously remembered user session
+        const savedUserId = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const matched = data.find((u) => u._id === savedUserId);
+        const selected = matched || data[0];
+
+        setActiveUser(selected);
+        localStorage.setItem(LOCAL_STORAGE_KEY, selected._id);
+      })
+      .catch((err) => {
+        console.error('Failed to load users:', err);
+        showToast('Error connecting to backend API');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2. Fetch personalized recommendations whenever active user changes or refreshTrigger increments
+  const loadRecommendations = useCallback(async (user) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await fetchRecommendations(user._id);
+      setListings(data);
+    } catch (err) {
+      console.error('Failed to load recommendations:', err);
+      showToast('Error loading personalized feed');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeUser) {
+      loadRecommendations(activeUser);
+    }
+  }, [activeUser, loadRecommendations, refreshTrigger]);
+
+  // Handle user switch
+  const handleSelectUser = (user) => {
+    setActiveUser(user);
+    localStorage.setItem(LOCAL_STORAGE_KEY, user._id);
+    showToast(`Switched active profile to ${user.name}`);
+  };
+
+  // Action: View Listing
+  const handleView = async (listing) => {
+    setActiveModalListing(listing);
+    if (!activeUser) return;
+
+    try {
+      await recordInteraction(activeUser._id, listing.listingId, 'view');
+      // Silently refresh feed in background so viewed penalty applies to future rankings
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('View logging failed:', err);
+    }
+  };
+
+  // Action: Save Listing
+  const handleSave = async (listing) => {
+    if (!activeUser) return;
+    setActionLoadingId(listing.listingId);
+    try {
+      await recordInteraction(activeUser._id, listing.listingId, 'save');
+      showToast(`⭐ Saved "${listing.title}". Feed updated!`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('Save failed:', err);
+      showToast('Failed to save listing');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Action: Contact Seller
+  const handleContact = async (listing) => {
+    if (!activeUser) return;
+    setActionLoadingId(listing.listingId);
+    try {
+      await recordInteraction(activeUser._id, listing.listingId, 'contact');
+      showToast(`💬 Inquired for "${listing.title}". Feed updated!`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('Contact failed:', err);
+      showToast('Failed to record inquiry');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Detect Cold Start: If feed has items and reasons is "Popular right now"
+  const isColdStart =
+    listings.length > 0 &&
+    listings.slice(0, 3).every((l) => l.reasons?.includes('Popular right now'));
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app-container">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="toast-notification">
+          <span>{toastMessage}</span>
         </div>
-        <div>
-          <h1>Get started</h1>
+      )}
+
+      {/* Main Header */}
+      <header className="app-header">
+        <div className="header-inner">
+          <div className="brand-logo">
+            <span className="logo-icon">💎</span>
+            <div className="brand-titles">
+              <h1 className="logo-text">PrimeMarket<span className="logo-domain">.lk</span></h1>
+              <span className="logo-badge">Personalized Feed</span>
+            </div>
+          </div>
+
+          <UserSwitcher
+            users={users}
+            activeUser={activeUser}
+            onSelectUser={handleSelectUser}
+          />
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="main-content">
+        <div className="intro-section">
+          <h2>Personalized Real Estate & Vehicle Marketplace</h2>
           <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
+            Powered by intelligent multi-attribute ranking, anti-spam diminishing returns, and private S3 media delivery.
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <Feed
+          listings={listings}
+          loading={loading}
+          activeUser={activeUser}
+          isColdStart={isColdStart}
+          onView={handleView}
+          onSave={handleSave}
+          onContact={handleContact}
+          actionLoadingId={actionLoadingId}
+        />
+      </main>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {/* Detailed View Modal */}
+      {activeModalListing && (
+        <ListingModal
+          listing={activeModalListing}
+          onClose={() => setActiveModalListing(null)}
+          onSave={handleSave}
+          onContact={handleContact}
+        />
+      )}
+
+      {/* Activity History Drawer */}
+      <ActivityDrawer
+        activeUser={activeUser}
+        refreshTrigger={refreshTrigger}
+      />
+
+      {/* Footer */}
+      <footer className="app-footer">
+        <div className="footer-inner">
+          <p>PrimeMarket.lk Technical Assessment • MERN + AWS S3 Architecture</p>
+          <div className="footer-tags">
+            <span className="status-pill green">MongoDB Atlas Online</span>
+            <span className="status-pill blue">Private S3 Presigned URLs</span>
+            <span className="status-pill purple">Pure Ranking Engine</span>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      </footer>
+    </div>
+  );
 }
-
-export default App
